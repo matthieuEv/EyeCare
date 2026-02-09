@@ -31,6 +31,7 @@ final class UserDefaultsAlertSettingsStoreTests: XCTestCase {
             isEnabled: true,
             intervalMinutes: 18,
             borderDurationSeconds: 8,
+            accentColor: .blue,
             restrictToOfficeHours: true,
             officeHoursStartMinutes: 8 * 60,
             officeHoursEndMinutes: 18 * 60
@@ -50,6 +51,7 @@ final class UserDefaultsAlertSettingsStoreTests: XCTestCase {
             isEnabled: false,
             intervalMinutes: 30,
             borderDurationSeconds: 6,
+            accentColor: .green,
             restrictToOfficeHours: true,
             officeHoursStartMinutes: 10 * 60,
             officeHoursEndMinutes: 19 * 60
@@ -61,6 +63,7 @@ final class UserDefaultsAlertSettingsStoreTests: XCTestCase {
         XCTAssertEqual(loaded.isEnabled, true)
         XCTAssertEqual(loaded.intervalMinutes, 22)
         XCTAssertEqual(loaded.borderDurationSeconds, 7)
+        XCTAssertEqual(loaded.accentColor, fallback.accentColor)
         XCTAssertEqual(loaded.restrictToOfficeHours, fallback.restrictToOfficeHours)
         XCTAssertEqual(loaded.officeHoursStartMinutes, fallback.officeHoursStartMinutes)
         XCTAssertEqual(loaded.officeHoursEndMinutes, fallback.officeHoursEndMinutes)

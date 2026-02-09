@@ -10,6 +10,7 @@ public protocol ReminderScheduling: AnyObject {
 @MainActor
 public protocol OverlayPresenting: AnyObject {
     func showOverlay(for duration: TimeInterval)
+    func setOverlayColor(_ color: AlertAccentColor)
 }
 
 @MainActor
@@ -33,6 +34,7 @@ public final class EyeRestController {
         self.scheduler = scheduler
         self.overlayPresenter = overlayPresenter
         self.nowProvider = nowProvider
+        self.overlayPresenter.setOverlayColor(self.settings.accentColor)
     }
 
     public func start() {
@@ -49,6 +51,7 @@ public final class EyeRestController {
 
     public func apply(settings: AlertSettings) {
         self.settings = settings.normalized()
+        overlayPresenter.setOverlayColor(self.settings.accentColor)
 
         guard isRunning else {
             return

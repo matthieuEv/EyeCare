@@ -105,6 +105,34 @@ final class EyeRestControllerTests: XCTestCase {
         XCTAssertEqual(overlay.durations, [6])
     }
 
+    func testApplySettingsUpdatesOverlayColor() {
+        let scheduler = MockScheduler()
+        let overlay = MockOverlayPresenter()
+        let settings = AlertSettings(
+            isEnabled: true,
+            intervalMinutes: 20,
+            borderDurationSeconds: 6,
+            accentColor: .red
+        )
+
+        let controller = EyeRestController(
+            settings: settings,
+            scheduler: scheduler,
+            overlayPresenter: overlay
+        )
+
+        controller.apply(
+            settings: AlertSettings(
+                isEnabled: true,
+                intervalMinutes: 20,
+                borderDurationSeconds: 6,
+                accentColor: .blue
+            )
+        )
+
+        XCTAssertEqual(overlay.colors, [.red, .blue])
+    }
+
     func testStartDoesNotScheduleOutsideOfficeHoursWhenRestricted() {
         let scheduler = MockScheduler()
         let overlay = MockOverlayPresenter()
@@ -205,8 +233,13 @@ private final class MockScheduler: ReminderScheduling {
 @MainActor
 private final class MockOverlayPresenter: OverlayPresenting {
     private(set) var durations: [TimeInterval] = []
+    private(set) var colors: [AlertAccentColor] = []
 
     func showOverlay(for duration: TimeInterval) {
         durations.append(duration)
+    }
+
+    func setOverlayColor(_ color: AlertAccentColor) {
+        colors.append(color)
     }
 }

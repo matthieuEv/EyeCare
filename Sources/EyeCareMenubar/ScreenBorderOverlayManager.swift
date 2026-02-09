@@ -8,7 +8,7 @@ final class ScreenBorderOverlayManager: NSObject, OverlayPresenting {
 
     private let borderWidth: CGFloat
     private let insideCornerRadius: CGFloat
-    private let borderColor: NSColor
+    private var borderColor: NSColor
     private let notificationCenter: NotificationCenter
 
     init(
@@ -54,6 +54,14 @@ final class ScreenBorderOverlayManager: NSObject, OverlayPresenting {
         hideWorkItem = workItem
 
         DispatchQueue.main.asyncAfter(deadline: .now() + max(0.1, duration), execute: workItem)
+    }
+
+    func setOverlayColor(_ color: AlertAccentColor) {
+        borderColor = nsColor(for: color)
+
+        for window in windowsByScreenIdentifier.values {
+            window.updateBorderColor(borderColor)
+        }
     }
 
     private func hideOverlay() {
@@ -106,16 +114,38 @@ final class ScreenBorderOverlayManager: NSObject, OverlayPresenting {
 
         return value.stringValue
     }
+
+    private func nsColor(for color: AlertAccentColor) -> NSColor {
+        switch color {
+        case .red:
+            return .systemRed
+        case .orange:
+            return .systemOrange
+        case .yellow:
+            return .systemYellow
+        case .green:
+            return .systemGreen
+        case .blue:
+            return .systemBlue
+        case .pink:
+            return .systemPink
+        }
+    }
 }
 
 @MainActor
 private final class BorderOverlayWindow: NSWindow {
+    private let overlayView: BorderOverlayView
+
     init(
         screen: NSScreen,
         borderWidth: CGFloat,
         insideCornerRadius: CGFloat,
         borderColor: NSColor
     ) {
+        let overlayView = BorderOverlayView(frame: NSRect(origin: .zero, size: screen.frame.size))
+        self.overlayView = overlayView
+
         super.init(
             contentRect: screen.frame,
             styleMask: [.borderless],
@@ -131,13 +161,16 @@ private final class BorderOverlayWindow: NSWindow {
         ignoresMouseEvents = true
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
 
-        let overlayView = BorderOverlayView(frame: NSRect(origin: .zero, size: screen.frame.size))
         overlayView.autoresizingMask = [.width, .height]
         overlayView.borderWidth = borderWidth
         overlayView.insideCornerRadius = insideCornerRadius
         overlayView.borderColor = borderColor
 
         contentView = overlayView
+    }
+
+    func updateBorderColor(_ color: NSColor) {
+        overlayView.borderColor = color
     }
 
     override var canBecomeKey: Bool {

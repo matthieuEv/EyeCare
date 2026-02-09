@@ -1,5 +1,14 @@
 import Foundation
 
+public enum AlertAccentColor: String, CaseIterable, Sendable {
+    case red
+    case orange
+    case yellow
+    case green
+    case blue
+    case pink
+}
+
 public struct AlertSettings: Equatable, Sendable {
     public static let minimumIntervalMinutes: Double = 1
     public static let maximumIntervalMinutes: Double = 240
@@ -11,6 +20,7 @@ public struct AlertSettings: Equatable, Sendable {
     public var isEnabled: Bool
     public var intervalMinutes: Double
     public var borderDurationSeconds: Double
+    public var accentColor: AlertAccentColor
     public var restrictToOfficeHours: Bool
     public var officeHoursStartMinutes: Double
     public var officeHoursEndMinutes: Double
@@ -19,6 +29,7 @@ public struct AlertSettings: Equatable, Sendable {
         isEnabled: Bool = true,
         intervalMinutes: Double = 20,
         borderDurationSeconds: Double = 5,
+        accentColor: AlertAccentColor = .red,
         restrictToOfficeHours: Bool = false,
         officeHoursStartMinutes: Double = 9 * 60,
         officeHoursEndMinutes: Double = 17 * 60
@@ -34,6 +45,7 @@ public struct AlertSettings: Equatable, Sendable {
             lowerBound: Self.minimumBorderDurationSeconds,
             upperBound: Self.maximumBorderDurationSeconds
         )
+        self.accentColor = accentColor
         self.restrictToOfficeHours = restrictToOfficeHours
         self.officeHoursStartMinutes = Self.clamp(
             round(officeHoursStartMinutes),
@@ -118,6 +130,7 @@ public struct AlertSettings: Equatable, Sendable {
             isEnabled: isEnabled,
             intervalMinutes: intervalMinutes,
             borderDurationSeconds: borderDurationSeconds,
+            accentColor: accentColor,
             restrictToOfficeHours: restrictToOfficeHours,
             officeHoursStartMinutes: officeHoursStartMinutes,
             officeHoursEndMinutes: officeHoursEndMinutes
