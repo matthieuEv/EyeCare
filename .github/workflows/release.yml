@@ -1,0 +1,119 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    name: Build app and publish release
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Derive version from tag
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG_NAME="${GITHUB_REF_NAME}"
+          VERSION="${TAG_NAME#v}"
+
+          if [[ -z "$VERSION" ]]; then
+            echo "Invalid tag: '$TAG_NAME'" >&2
+            exit 1
+          fi
+
+          # Info.plist CFBundleShortVersionString must stay numeric (x.y.z).
+          BUNDLE_VERSION="$(echo "$VERSION" | sed -E 's/[^0-9.].*$//')"
+          if [[ -z "$BUNDLE_VERSION" ]]; then
+            echo "Tag '$TAG_NAME' does not start with a numeric version." >&2
+            exit 1
+          fi
+
+          IFS='.' read -r MAJOR MINOR PATCH _ <<< "$BUNDLE_VERSION"
+          MINOR="${MINOR:-0}"
+          PATCH="${PATCH:-0}"
+          BUNDLE_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+
+          echo "tag=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "bundle_version=$BUNDLE_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build release app bundle
+        run: ./scripts/package-app.sh
+        env:
+          EYECARE_APP_VERSION: ${{ steps.version.outputs.bundle_version }}
+          EYECARE_APP_BUILD: ${{ github.run_number }}
+
+      - name: Validate bundle metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          INFO_PLIST="dist/EyeCare.app/Contents/Info.plist"
+          test -f "$INFO_PLIST"
+
+          SHORT_VERSION="$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$INFO_PLIST")"
+          BUILD_VERSION="$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$INFO_PLIST")"
+
+          test "$SHORT_VERSION" = "${{ steps.version.outputs.bundle_version }}"
+          test "$BUILD_VERSION" = "${{ github.run_number }}"
+
+      - name: Create DMG
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          DMG_NAME="EyeCare-${{ steps.version.outputs.version }}.dmg"
+          STAGING_DIR="$(mktemp -d)"
+          trap 'rm -rf "$STAGING_DIR"' EXIT
+
+          cp -R dist/EyeCare.app "$STAGING_DIR/EyeCare.app"
+          ln -s /Applications "$STAGING_DIR/Applications"
+
+          hdiutil create \
+            -volname "EyeCare ${{ steps.version.outputs.version }}" \
+            -srcfolder "$STAGING_DIR" \
+            -ov \
+            -format UDZO \
+            "dist/$DMG_NAME"
+
+          echo "dmg_name=$DMG_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EyeCare-${{ steps.version.outputs.version }}
+          path: dist/${{ steps.package.outputs.dmg_name }}
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: EyeCare ${{ steps.version.outputs.version }}
+          body: |
+            ## Install on macOS
+            1. Download `${{ steps.package.outputs.dmg_name }}` from this release.
+            2. Open the DMG.
+            3. Drag `EyeCare.app` to `Applications`.
+            4. Launch `EyeCare.app`.
+            5. If macOS blocks first launch (unsigned app), right-click the app, choose `Open`, then confirm.
+
+            ## Version metadata
+            - `CFBundleShortVersionString`: `${{ steps.version.outputs.bundle_version }}`
+            - `CFBundleVersion`: `${{ github.run_number }}`
+          files: dist/${{ steps.package.outputs.dmg_name }}
+          generate_release_notes: true
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}

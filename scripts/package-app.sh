@@ -11,6 +11,45 @@ RESOURCES_DIR="$CONTENTS_DIR/Resources"
 ICON_SOURCE_PATH="$ROOT_DIR/resources/AppIcon.icns"
 ICON_TARGET_PATH="$RESOURCES_DIR/AppIcon.icns"
 MODULE_CACHE_DIR="$ROOT_DIR/.build/module-cache"
+APP_VERSION="${EYECARE_APP_VERSION:-1.0.0}"
+APP_BUILD="${EYECARE_APP_BUILD:-1}"
+
+usage() {
+    cat <<EOF
+Usage: ./scripts/package-app.sh [--version <x.y.z>] [--build <n>]
+
+Environment:
+  EYECARE_APP_VERSION  Version string used for CFBundleShortVersionString
+  EYECARE_APP_BUILD    Build number used for CFBundleVersion
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --version)
+            APP_VERSION="${2:-}"
+            shift 2
+            ;;
+        --build)
+            APP_BUILD="${2:-}"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown argument: $1" >&2
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+if [[ -z "$APP_VERSION" || -z "$APP_BUILD" ]]; then
+    echo "Both version and build values must be non-empty." >&2
+    exit 1
+fi
 
 mkdir -p "$MODULE_CACHE_DIR"
 CLANG_MODULE_CACHE_PATH="$MODULE_CACHE_DIR" \
@@ -52,9 +91,9 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>$APP_VERSION</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>$APP_BUILD</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
     <key>LSUIElement</key>
@@ -64,3 +103,4 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 PLIST
 
 echo "Packaged app bundle: $APP_DIR"
+echo "Version: $APP_VERSION ($APP_BUILD)"
