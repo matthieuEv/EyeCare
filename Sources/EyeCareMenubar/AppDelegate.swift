@@ -1,5 +1,6 @@
 import AppKit
 import EyeCareCore
+import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -20,6 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var intervalStepper: NSStepper?
     private var borderDurationStepper: NSStepper?
     private var countdownRefreshTimer: Timer?
+    private var settingsWindow: NSWindow?
+    private var settingsViewModel: SettingsViewModel?
 
     override init() {
         let settingsStore = UserDefaultsAlertSettingsStore()
@@ -72,6 +75,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc
+    private func openSettingsPopup() {
+        if let settingsWindow {
+            settingsWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let viewModel = SettingsViewModel(settings: currentSettings)
+        viewModel.onChange = { [weak self] settings in
+            self?.applySettings(settings)
+        }
+
+        let rootView = SettingsPopupView(viewModel: viewModel)
+        let hostingController = NSHostingController(rootView: rootView)
+        let window = NSWindow(contentViewController: hostingController)
+        window.title = "Settings"
+        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.isReleasedWhenClosed = false
+        window.setContentSize(NSSize(width: 680, height: 440))
+        window.center()
+
+        self.settingsViewModel = viewModel
+        self.settingsWindow = window
+
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc
     private func quitApplication() {
         NSApplication.shared.terminate(nil)
     }
@@ -104,6 +136,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         enabledMenuItem.target = self
         enabledMenuItem.state = currentSettings.isEnabled ? .on : .off
         menu.addItem(enabledMenuItem)
+
+        let settingsMenuItem = NSMenuItem(
+            title: "Settings",
+            action: #selector(openSettingsPopup),
+            keyEquivalent: ""
+        )
+        settingsMenuItem.target = self
+        menu.addItem(settingsMenuItem)
 
         menu.addItem(.separator())
 
@@ -145,7 +185,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc
     private func countdownTimerDidFire() {
-        updateCountdownDisplay()
+        let now = Date()
+        controller.refreshSchedule(for: now)
+        updateCountdownDisplay(now: now)
     }
 
     private func makeDashboardMenuItem(
@@ -285,6 +327,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         minValue: Double,
         maxValue: Double,
         currentValue: Double,
+        step: Double = 1,
         action: Selector
     ) -> (cardView: NSView, valueLabel: NSTextField, stepper: NSStepper) {
         let titleLabel = NSTextField(labelWithString: title)
@@ -300,7 +343,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let stepper = NSStepper()
         stepper.minValue = minValue
         stepper.maxValue = maxValue
-        stepper.increment = 1
+        stepper.increment = step
         stepper.doubleValue = currentValue
         stepper.controlSize = .small
         stepper.target = self
@@ -344,10 +387,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         borderDurationValueLabel?.stringValue = formattedBorderDuration(currentSettings.borderDurationSeconds)
         intervalStepper?.doubleValue = currentSettings.intervalMinutes
         borderDurationStepper?.doubleValue = currentSettings.borderDurationSeconds
-        updateCountdownDisplay()
+        settingsViewModel?.load(currentSettings)
+        let now = Date()
+        controller.refreshSchedule(for: now)
+        updateCountdownDisplay(now: now)
     }
 
-    private func updateCountdownDisplay() {
+    private func updateCountdownDisplay(now: Date = Date()) {
         guard currentSettings.isEnabled else {
             updateStatusButtonState(
                 isEnabled: false,
@@ -357,6 +403,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 title: "Reminders disabled",
                 value: "--:--",
                 dotColor: .systemGray
+            )
+            return
+        }
+
+        if currentSettings.restrictToOfficeHours,
+            !currentSettings.isReminderAllowed(at: now) {
+            let resumeText: String
+
+            if let nextStart = currentSettings.nextOfficeHoursStart(after: now) {
+                resumeText = formatRemainingTime(nextStart.timeIntervalSince(now))
+            } else {
+                resumeText = "--:--"
+            }
+
+            updateStatusButtonState(
+                isEnabled: true,
+                toolTip: "EyeCare - outside office hours"
+            )
+            updateCountdownPanel(
+                title: "Outside office hours",
+                value: resumeText,
+                dotColor: .systemBlue
             )
             return
         }

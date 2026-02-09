@@ -18,26 +18,33 @@ public final class EyeRestController {
 
     private let scheduler: ReminderScheduling
     private let overlayPresenter: OverlayPresenting
+    private let nowProvider: () -> Date
     private var isRunning = false
+    private var isSchedulerActive = false
+    private var activeInterval: TimeInterval?
 
     public init(
         settings: AlertSettings,
         scheduler: ReminderScheduling,
-        overlayPresenter: OverlayPresenting
+        overlayPresenter: OverlayPresenting,
+        nowProvider: @escaping () -> Date = Date.init
     ) {
         self.settings = settings.normalized()
         self.scheduler = scheduler
         self.overlayPresenter = overlayPresenter
+        self.nowProvider = nowProvider
     }
 
     public func start() {
         isRunning = true
-        rescheduleIfNeeded()
+        rescheduleIfNeeded(now: nowProvider(), forceReschedule: true)
     }
 
     public func stop() {
         isRunning = false
         scheduler.stop()
+        isSchedulerActive = false
+        activeInterval = nil
     }
 
     public func apply(settings: AlertSettings) {
@@ -47,17 +54,39 @@ public final class EyeRestController {
             return
         }
 
-        rescheduleIfNeeded()
+        rescheduleIfNeeded(now: nowProvider(), forceReschedule: true)
+    }
+
+    public func refreshSchedule(for date: Date? = nil) {
+        guard isRunning else {
+            return
+        }
+
+        rescheduleIfNeeded(now: date ?? nowProvider())
     }
 
     public func triggerNow() {
         overlayPresenter.showOverlay(for: settings.borderDuration)
     }
 
-    private func rescheduleIfNeeded() {
-        scheduler.stop()
+    private func rescheduleIfNeeded(
+        now: Date = Date(),
+        forceReschedule: Bool = false
+    ) {
+        let shouldSchedule = settings.isEnabled && settings.isReminderAllowed(at: now)
+        let needsReschedule = forceReschedule
+            || shouldSchedule != isSchedulerActive
+            || (shouldSchedule && activeInterval != settings.intervalSeconds)
 
-        guard settings.isEnabled else {
+        guard needsReschedule else {
+            return
+        }
+
+        scheduler.stop()
+        isSchedulerActive = false
+        activeInterval = nil
+
+        guard shouldSchedule else {
             return
         }
 
@@ -68,5 +97,7 @@ public final class EyeRestController {
             }
             self.overlayPresenter.showOverlay(for: self.settings.borderDuration)
         }
+        isSchedulerActive = true
+        activeInterval = interval
     }
 }

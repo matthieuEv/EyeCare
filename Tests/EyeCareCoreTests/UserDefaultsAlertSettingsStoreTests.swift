@@ -27,10 +27,42 @@ final class UserDefaultsAlertSettingsStoreTests: XCTestCase {
 
     func testSaveThenLoadRoundTripsValues() {
         let store = UserDefaultsAlertSettingsStore(defaults: defaults)
-        let expected = AlertSettings(isEnabled: true, intervalMinutes: 18, borderDurationSeconds: 8)
+        let expected = AlertSettings(
+            isEnabled: true,
+            intervalMinutes: 18,
+            borderDurationSeconds: 8,
+            restrictToOfficeHours: true,
+            officeHoursStartMinutes: 8 * 60,
+            officeHoursEndMinutes: 18 * 60
+        )
 
         store.save(expected)
 
         XCTAssertEqual(store.load(), expected)
+    }
+
+    func testLoadUsesFallbackOfficeHoursValuesForLegacyStoredData() {
+        defaults.set(true, forKey: "eye_rest_alert.is_enabled")
+        defaults.set(22.0, forKey: "eye_rest_alert.interval_minutes")
+        defaults.set(7.0, forKey: "eye_rest_alert.border_duration_seconds")
+
+        let fallback = AlertSettings(
+            isEnabled: false,
+            intervalMinutes: 30,
+            borderDurationSeconds: 6,
+            restrictToOfficeHours: true,
+            officeHoursStartMinutes: 10 * 60,
+            officeHoursEndMinutes: 19 * 60
+        )
+        let store = UserDefaultsAlertSettingsStore(defaults: defaults, fallbackSettings: fallback)
+
+        let loaded = store.load()
+
+        XCTAssertEqual(loaded.isEnabled, true)
+        XCTAssertEqual(loaded.intervalMinutes, 22)
+        XCTAssertEqual(loaded.borderDurationSeconds, 7)
+        XCTAssertEqual(loaded.restrictToOfficeHours, fallback.restrictToOfficeHours)
+        XCTAssertEqual(loaded.officeHoursStartMinutes, fallback.officeHoursStartMinutes)
+        XCTAssertEqual(loaded.officeHoursEndMinutes, fallback.officeHoursEndMinutes)
     }
 }
