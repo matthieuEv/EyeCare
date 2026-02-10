@@ -33,7 +33,7 @@ The app is built around the 20-20-20 principle: every 20 minutes, look at someth
 
 - macOS `13` or newer
 - Xcode Command Line Tools (`xcode-select --install`)
-- Swift `6.2` toolchain (via recent Xcode)
+- Swift `6.0+` toolchain (tested with Xcode `16.2`)
 
 ## Quick Start
 
